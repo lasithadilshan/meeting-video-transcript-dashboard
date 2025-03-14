@@ -1,3 +1,8 @@
 streamlit
 google-generativeai
 yt-dlp
+pandas
+matplotlib
+wordcloud
+textblob
+vaderSentiment
