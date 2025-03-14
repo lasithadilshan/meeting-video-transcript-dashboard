@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import re
+import plotly.express as px
 from collections import defaultdict
 from google.generativeai import GenerativeModel
 
@@ -69,7 +69,7 @@ st.markdown("""
 st.markdown("""
     <div class="header">
         <h1 style="margin:0;font-weight:700;">📋 MeetingMind AI</h1>
-        <p style="margin:0;opacity:0.9;">Visualize and analyze meeting transcripts with powerful insights</p>
+        <p style="margin:0;opacity:0.9;">Transform meeting transcripts into actionable insights</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -101,19 +101,22 @@ if uploaded_file:
         
         # Speaker Contribution Chart
         st.markdown("### Speaker Contribution")
-        fig, ax = plt.subplots()
-        df.set_index("Speaker")["Word Count"].plot(kind="bar", ax=ax, color="#6366F1")
-        ax.set_ylabel("Word Count")
-        ax.set_xlabel("Speaker")
-        st.pyplot(fig)
+        fig = px.bar(df, x="Speaker", y="Word Count", color="Speaker",
+                     title="Word Count by Speaker", text="Word Count",
+                     color_discrete_sequence=px.colors.qualitative.Pastel)
+        fig.update_traces(textposition="outside")
+        st.plotly_chart(fig, use_container_width=True)
         
-        # Word Cloud (Optional)
-        st.markdown("### Word Cloud")
-        st.write("Coming soon! (Enable with `wordcloud` library)")
+        # Word Count Pie Chart
+        st.markdown("### Word Distribution")
+        fig = px.pie(df, values="Word Count", names="Speaker",
+                      title="Word Distribution by Speaker",
+                      color_discrete_sequence=px.colors.qualitative.Pastel)
+        st.plotly_chart(fig, use_container_width=True)
         
-        # Sentiment Analysis (Optional)
+        # Sentiment Analysis Placeholder
         st.markdown("### Sentiment Analysis")
-        st.write("Coming soon! (Enable with `textblob` or `vaderSentiment`)")
+        st.info("Sentiment analysis feature coming soon! 🚀")
         
         # Speaker Summaries
         st.subheader("🗣️ Speaker Summaries")
@@ -167,6 +170,6 @@ if uploaded_file:
 st.markdown("""
     <div style="text-align: center; margin-top: 4rem; color: #6B7280; font-size: 0.9rem;">
         <hr style="border: 0.5px solid #E5E7EB; margin-bottom: 1rem;">
-        Powered by Gemini AI • MeetingMind 2024 • v1.3.0
+        Powered by Gemini AI • MeetingMind 2024 • v1.4.0
     </div>
 """, unsafe_allow_html=True)
