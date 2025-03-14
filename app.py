@@ -1,5 +1,8 @@
 import streamlit as st
-import yt_dlp
+import pandas as pd
+import matplotlib.pyplot as plt
+import re
+from collections import defaultdict
 from google.generativeai import GenerativeModel
 
 # Configure Gemini
@@ -66,69 +69,56 @@ st.markdown("""
 st.markdown("""
     <div class="header">
         <h1 style="margin:0;font-weight:700;">📋 MeetingMind AI</h1>
-        <p style="margin:0;opacity:0.9;">Transform video meetings into organized minutes with speaker identification</p>
+        <p style="margin:0;opacity:0.9;">Visualize and analyze meeting transcripts with powerful insights</p>
     </div>
 """, unsafe_allow_html=True)
 
-# Main Content
-with st.container():
-    col1, col2 = st.columns([3,1])
-    with col1:
-        video_url = st.text_input(" ", placeholder="🎥 Paste meeting video URL here...")
-    with col2:
-        st.markdown("<div style='height:50px'></div>", unsafe_allow_html=True)
-        st.button("ℹ️ How it works")
+# File Uploader
+uploaded_file = st.file_uploader("📄 Upload Meeting Transcript", type=["txt"])
 
-if video_url:
+if uploaded_file:
     try:
-        # Processing Status
-        with st.status("🔍 Analyzing your meeting content...", expanded=True) as status:
-            # Audio Extraction
-            st.write("📡 Connecting to video source...")
-            ydl_opts = {'format': 'bestaudio/best', 'quiet': True}
-            
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(video_url, download=False)
-                audio_url = info.get('url', None)
-            
-            if not audio_url:
-                st.error("❌ Failed to retrieve audio stream")
-                st.stop()
-            
-            # Transcription
-            st.write("🎙️ Transcribing audio...")
-            transcript_response = model.generate_content(f"Transcribe the following audio: {audio_url}")
-            full_transcript = transcript_response.text
-            
-            # Speaker Identification
-            st.write("👥 Identifying speakers...")
-            name_prompt = f"""Analyze this meeting transcript and replace generic speaker labels with actual names. 
-            Maintain format with 'Name: text'.\n\n{full_transcript}"""
-            updated_response = model.generate_content(name_prompt)
-            updated_transcript = updated_response.text
-            
-            # Processing Complete
-            status.update(label="✅ Analysis Complete!", state="complete", expanded=False)
-
-        # Results Section
-        st.subheader("📊 Meeting Insights")
+        # Read the transcript
+        transcript = uploaded_file.read().decode("utf-8")
         
-        # Speaker Summaries
-        transcript_lines = updated_transcript.split("\n")
-        speaker_transcripts = {}
+        # Parse the transcript
+        speaker_data = defaultdict(list)
+        lines = transcript.split("\n")
         
-        for line in transcript_lines:
+        for line in lines:
             if ":" in line:
                 speaker, text = line.split(":", 1)
                 speaker = speaker.strip()
                 text = text.strip()
-                if speaker not in speaker_transcripts:
-                    speaker_transcripts[speaker] = []
-                speaker_transcripts[speaker].append(text)
+                speaker_data[speaker].append(text)
         
-        # Display Beautiful Cards
-        for speaker, texts in speaker_transcripts.items():
-            response = model.generate_content("Summarize these points in bullet format:\n" + "\n".join(texts))
+        # Convert to DataFrame for analysis
+        df = pd.DataFrame([(speaker, len(texts)) for speaker, texts in speaker_data.items()], 
+                          columns=["Speaker", "Word Count"])
+        
+        # Visualizations
+        st.subheader("📊 Meeting Insights")
+        
+        # Speaker Contribution Chart
+        st.markdown("### Speaker Contribution")
+        fig, ax = plt.subplots()
+        df.set_index("Speaker")["Word Count"].plot(kind="bar", ax=ax, color="#6366F1")
+        ax.set_ylabel("Word Count")
+        ax.set_xlabel("Speaker")
+        st.pyplot(fig)
+        
+        # Word Cloud (Optional)
+        st.markdown("### Word Cloud")
+        st.write("Coming soon! (Enable with `wordcloud` library)")
+        
+        # Sentiment Analysis (Optional)
+        st.markdown("### Sentiment Analysis")
+        st.write("Coming soon! (Enable with `textblob` or `vaderSentiment`)")
+        
+        # Speaker Summaries
+        st.subheader("🗣️ Speaker Summaries")
+        for speaker, texts in speaker_data.items():
+            response = model.generate_content(f"Summarize the following points in bullet format:\n{''.join(texts)}")
             
             st.markdown(f"""
                 <div class="speaker-card">
@@ -143,38 +133,33 @@ if video_url:
                     <div style="color:#4B5563;line-height:1.6">{response.text}</div>
                 </div>
             """, unsafe_allow_html=True)
-
+        
         # Download Section
         st.markdown("---")
         col1, col2 = st.columns([2,1])
         with col1:
             st.subheader("📥 Export Results")
             st.markdown("""
-                Export your meeting minutes in a professional format suitable for sharing with stakeholders.
+                Export your meeting analysis in a professional format suitable for sharing with stakeholders.
             """)
         with col2:
             st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
-            minutes_file = "meeting_minutes.txt"
+            minutes_file = "meeting_analysis.txt"
             with open(minutes_file, "w") as f:
-                for speaker, texts in speaker_transcripts.items():
+                f.write("Meeting Analysis Report\n\n")
+                f.write("Speaker Contributions:\n")
+                f.write(df.to_string(index=False) + "\n\n")
+                f.write("Speaker Summaries:\n")
+                for speaker, texts in speaker_data.items():
                     f.write(f"{speaker}:\n{'- ' + '\n- '.join(texts)}\n\n")
             
             st.download_button("Download Full Report", 
                              data=open(minutes_file, "rb"), 
-                             file_name="meeting_minutes.txt",
+                             file_name="meeting_analysis.txt",
                              mime="text/plain",
                              use_container_width=True,
                              type="primary")
-
-        # Full Transcript Accordion
-        with st.expander("📜 View Full Transcript", expanded=False):
-            st.markdown(f"""
-                <div style="background: white; padding: 1.5rem; border-radius: 12px;
-                            border: 1px solid #E5E7EB; margin-top: 1rem;">
-                    {updated_transcript.replace('\n', '<br>')}
-                </div>
-            """, unsafe_allow_html=True)
-
+    
     except Exception as e:
         st.error(f"🚨 Error: {e}")
 
@@ -182,6 +167,6 @@ if video_url:
 st.markdown("""
     <div style="text-align: center; margin-top: 4rem; color: #6B7280; font-size: 0.9rem;">
         <hr style="border: 0.5px solid #E5E7EB; margin-bottom: 1rem;">
-        Powered by Gemini AI • MeetingMind 2024 • v1.2.0
+        Powered by Gemini AI • MeetingMind 2024 • v1.3.0
     </div>
 """, unsafe_allow_html=True)
